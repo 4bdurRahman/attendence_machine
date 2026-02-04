@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JTech Attendance Dashboard</title>
+    <link rel="stylesheet" href="./style.css">
+    <!-- SheetJS for Excel Exports -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1 style="margin-bottom: 40px; text-align: center;">JTech Attendance Pro</h1>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px; align-items: stretch;">
+            <!-- Device Settings Card -->
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h3 style="margin-bottom: 0;">🔌 Connection</h3>
+                        <div class="system-status"
+                            style="margin-top: 0; background: #f1f5f9; border: 1px solid #e2e8f0;">
+                            <div id="status-dot" class="status-dot"></div>
+                            <span id="header-status-text" style="color: #64748b;">Connecting...</span>
+                        </div>
+                    </div>
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="input-group">
+                            <label>Device IP</label>
+                            <input type="text" id="deviceIp" value="192.168.18.144" placeholder="192.168.1.100">
+                        </div>
+                        <div class="input-group">
+                            <label>Port</label>
+                            <input type="number" id="devicePort" value="4370">
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 24px;">
+                    <button class="btn btn-secondary" onclick="updateDeviceConfig()" style="width: 100%;">Update
+                        Settings</button>
+                </div>
+            </div>
+
+            <!-- Filters & Reports -->
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <h3>🔍 View Filters</h3>
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="input-group">
+                            <label>View Mode</label>
+                            <select id="filterType" onchange="updateFilterInput()">
+                                <option value="date">Specific Date</option>
+                                <option value="month">Month</option>
+                                <option value="year">Year</option>
+                                <option value="">(All Records)</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Target Value</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="date" id="filterValue" style="flex: 1;">
+                                <button class="btn btn-primary" onclick="getAttendanceLogs()"
+                                    style="width: auto; padding: 0 20px;">🔍</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="export-btns" style="margin-top: 24px; display: flex; gap: 12px;">
+                    <button class="btn btn-success" onclick="exportExcel()" style="flex: 1;">📄 Detailed</button>
+                    <button class="btn btn-success" onclick="exportSummary()" style="flex: 1;">📊 Summary</button>
+                    <button class="btn btn-primary" onclick="syncToCloud()" style="flex: 1; background: #9333ea;">☁️
+                        Cloud Sync</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee Status Dashboard -->
+        <div class="card">
+            <h3>Office Status</h3>
+            <div id="status-grid" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+                <!-- Status cards will be injected here -->
+            </div>
+        </div>
+
+        <!-- Statistics Summary -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 0;">Daily Summary (Staying Time)</h3>
+                <button class="btn btn-success" style="padding: 8px 16px; font-size: 0.9rem;" onclick="exportSummary()">
+                    📥 Export Excel
+                </button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Date</th>
+                            <th>First In</th>
+                            <th>Last Out</th>
+                            <th>Total Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryBody">
+                        <tr>
+                            <td colspan="5" align="center">No data loaded</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Detailed Attendance Logs</h3>
+            <div class="table-container">
+                <table id="attendanceTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Date & Time</th>
+                            <th>State</th>
+                            <th>Device</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsBody">
+                        <tr>
+                            <td colspan="5" align="center">Fetch data to view logs</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination">
+                <button class="btn btn-secondary btn-page" id="prevPage" onclick="changePage(-1)">Previous</button>
+                <span class="page-info" id="pageInfo">Page 1 of 1</span>
+                <button class="btn btn-secondary btn-page" id="nextPage" onclick="changePage(1)">Next</button>
+            </div>
+        </div>
+
+        <!-- User Management -->
+        <div class="card">
+            <h3>Registered Users</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>UID</th>
+                            <th>User ID</th>
+                            <th>Full Name</th>
+                            <th>Role</th>
+                            <th>Card</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersBody">
+                        <tr>
+                            <td colspan="5" align="center">Loading users...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let autoRefreshInterval = null;
+        let lastData = null;
+        let currentPage = 1;
+        const rowsPerPage = 15;
+        let isFetching = false;
+
+        function startAutoRefresh() {
+            getUsers().then(() => {
+                getAttendanceLogs();
+                autoRefreshInterval = setInterval(getAttendanceLogs, 10000);
+            });
+        }
+
+        async function updateDeviceConfig() {
+            const ip = document.getElementById('deviceIp').value;
+            const port = document.getElementById('devicePort').value;
+            try {
+                const res = await fetch('http://localhost:3000/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, port })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Connection settings updated. Reconnecting...');
+                    getAttendanceLogs();
+                }
+            } catch (err) { alert('Failed to update config'); }
+        }
+
+        function updateFilterInput() {
+            const type = document.getElementById('filterType').value;
+            const val = document.getElementById('filterValue');
+            const today = new Date();
+            const todayStr = getLocalISODate(today);
+
+            if (type === 'date') {
+                val.type = 'date';
+                val.value = todayStr;
+            }
+            else if (type === 'month') {
+                val.type = 'month';
+                val.value = todayStr.substring(0, 7);
+            }
+            else if (type === 'year') {
+                val.type = 'number';
+                val.placeholder = '2026';
+                val.value = today.getFullYear();
+            }
+            else {
+                val.type = 'text';
+                val.placeholder = 'N/A';
+                val.value = '';
+            }
+            // Reset to page 1 on filter change
+            currentPage = 1;
+        }
+
+        async function getAttendanceLogs() {
+            if (isFetching) return; // Prevent overlapping requests
+
+            const fType = document.getElementById('filterType').value;
+            const fVal = document.getElementById('filterValue').value;
+
+            const headerStatus = document.getElementById('header-status-text');
+            const statusDot = document.getElementById('status-dot');
+
+            isFetching = true;
+            statusDot.className = 'status-dot connecting';
+
+            try {
+                // [API] Using the new GET Endpoint
+                const url = new URL('http://localhost:3000/api/attendance');
+                if (fType && fVal) {
+                    url.searchParams.append('type', fType);
+                    url.searchParams.append('value', fVal);
+                }
+
+                const res = await fetch(url);
+                const data = await res.json();
+                lastData = data;
+
+                if (data.success) {
+                    headerStatus.textContent = "System Online";
+                    statusDot.className = 'status-dot online';
+                    renderData(data);
+                } else if (data.isBusy) {
+                    headerStatus.textContent = "Device is fetching data...";
+                    // Maintain "connecting" animation
+                } else {
+                    headerStatus.textContent = "Device Error: " + data.message;
+                    statusDot.className = 'status-dot offline';
+                }
+            } catch (err) {
+                headerStatus.textContent = "Server Offline";
+                statusDot.className = 'status-dot offline';
+            } finally {
+                isFetching = false;
+            }
+        }
+
+        function getLocalISODate(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function matchesFilter(dateKey, filterInfo) {
+            if (!filterInfo) {
+                return dateKey === getLocalISODate(new Date());
+            }
+            if (filterInfo.type === 'date') return dateKey === filterInfo.value;
+            if (filterInfo.type === 'month') return dateKey.startsWith(filterInfo.value);
+            if (filterInfo.type === 'year') return dateKey.startsWith(filterInfo.value);
+            return true;
+        }
+
+        function renderData(data) {
+            // 1. Logs Table with Pagination
+            const logsBody = document.getElementById('logsBody');
+            const filteredLogs = data.data;
+            const totalPages = Math.ceil(filteredLogs.length / rowsPerPage) || 1;
+
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const paginatedLogs = filteredLogs.slice(start, end);
+
+            let logHtml = '';
+            paginatedLogs.forEach(log => {
+                const date = new Date(log.timestamp);
+                const stateClass = log.status === 1 ? 'status-out' : 'status-in';
+                const stateText = log.status === 1 ? 'Out' : 'In';
+                logHtml += `<tr>
+                    <td>${log.uid}</td>
+                    <td><strong>${log.userName || '-'}</strong></td>
+                    <td>${date.toLocaleString()}</td>
+                    <td><span class="status-badge ${stateClass}">${stateText}</span></td>
+                    <td>${log.deviceSN}</td>
+                </tr>`;
+            });
+            logsBody.innerHTML = logHtml || '<tr><td colspan="5" align="center">No data matching filter</td></tr>';
+
+            // Update Pagination Controls
+            document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+            document.querySelector('.pagination').style.display = filteredLogs.length > rowsPerPage ? 'flex' : 'none';
+
+            // 2. Summary Table
+            let summaryHtml = '';
+            for (const uid in data.summary) {
+                const name = data.userNames[uid] || uid;
+                for (const date in data.summary[uid]) {
+                    // If filterType is empty (All Records), we show all
+                    if (data.filterInfo.type && !matchesFilter(date, data.filterInfo)) continue;
+                    const s = data.summary[uid][date];
+                    summaryHtml += `<tr>
+                        <td><strong>${name}</strong></td>
+                        <td>${date}</td>
+                        <td>${s.firstIn}</td>
+                        <td>${s.lastOut}</td>
+                        <td><span style="color:var(--primary); font-weight:bold">${s.duration}</span></td>
+                    </tr>`;
+                }
+            }
+            document.getElementById('summaryBody').innerHTML = summaryHtml || '<tr><td colspan="5">No data</td></tr>';
+
+            // 3. Status Dashboard (Show all users from userNames map)
+            let statusHtml = '';
+            const processedUids = new Set();
+
+            // First show users with activity
+            for (const uid in data.employeeStatus) {
+                processedUids.add(uid);
+                const rawName = data.userNames[uid] || `User ${uid}`;
+                const s = data.employeeStatus[uid];
+                const activeClass = s.state === 'In' ? 'status-in' : 'status-out';
+                statusHtml += `<div class="card stat-card">
+                    <div class="stat-label">User ID: ${uid}</div>
+                    <div class="stat-value" style="font-size: 1.2rem;">${rawName}</div>
+                    <div style="margin-top:10px">
+                        <span class="status-badge ${activeClass}">${s.state === 'In' ? '🟢 In Office' : '🔴 Out'}</span>
+                    </div>
+                </div>`;
+            }
+
+            // Then show remaining users as "Out"
+            for (const uid in data.userNames) {
+                if (processedUids.has(uid) || data.userNames[uid] === 'Unknown') continue;
+                statusHtml += `<div class="card stat-card" style="opacity: 0.7;">
+                    <div class="stat-label">User ID: ${uid}</div>
+                    <div class="stat-value" style="font-size: 1.2rem;">${data.userNames[uid]}</div>
+                    <div style="margin-top:10px">
+                        <span class="status-badge status-out">🔴 Out</span>
+                    </div>
+                </div>`;
+            }
+            document.getElementById('status-grid').innerHTML = statusHtml || 'No data';
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            if (lastData) renderData(lastData);
+        }
+
+        async function syncToCloud() {
+            const btn = event.currentTarget;
+            console.log("Cloud Sync button clicked");
+            if (!lastData) {
+                console.error("Sync aborted: No data loaded");
+                return alert('Load data first before syncing');
+            }
+
+            const fType = document.getElementById('filterType').value;
+            const fVal = document.getElementById('filterValue').value;
+
+            console.log(`Confirming sync for ${lastData.data.length} records...`);
+            if (!confirm(`Are you sure you want to sync ${lastData.data.length} records to Cloud?`)) {
+                console.log("Sync cancelled by user");
+                return;
+            }
+
+            console.log("Starting sync request to local API...");
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⌛ Syncing...';
+
+            try {
+                const res = await fetch('http://localhost:3000/api/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: fType, value: fVal })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert(`✅ Sync Successful!\nRecords: ${data.recordsSynced}\nServer Response: ${JSON.stringify(data.externalResponse.message || data.externalResponse || 'Success')}`);
+                } else {
+                    alert(`❌ Sync Failed\nStatus: ${data.externalStatus || 'Error'}\nDetails: ${JSON.stringify(data.externalResponse || data.message)}`);
+                }
+            } catch (err) {
+                console.error("Sync request failed:", err);
+                alert('Cloud sync failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        async function getUsers() {
+            try {
+                const res = await fetch('http://localhost:3000/api/users');
+                const data = await res.json();
+                if (data.success) {
+                    let html = '';
+                    data.data.forEach(u => {
+                        html += `<tr>
+                            <td>${u.uid || '-'}</td>
+                            <td>${u.userId || '-'}</td>
+                            <td>${u.name}</td>
+                            <td>${u.role == 14 ? 'Admin' : 'User'}</td>
+                            <td>${u.cardNo || '-'}</td>
+                        </tr>`;
+                    });
+                    document.getElementById('usersBody').innerHTML = html;
+                }
+            } catch (err) { alert('Failed to load users'); }
+        }
+
+        function exportExcel() {
+            if (!lastData) return alert('Load data first');
+            const headers = ["User ID", "Name", "Date & Time", "State", "Device"];
+            const rows = [];
+            lastData.data.forEach(log => {
+                const dateObj = new Date(log.timestamp);
+                const dateStr = getLocalISODate(dateObj);
+                if (!matchesFilter(dateStr, lastData.filterInfo)) return;
+                const stateText = log.status === 1 ? 'Out' : 'In';
+                rows.push([log.uid, log.userName || '-', dateObj.toLocaleString(), stateText, log.deviceSN]);
+            });
+            const ws_data = [headers, ...rows];
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Attendance Logs");
+            XLSX.writeFile(wb, `attendance_logs_${getLocalISODate(new Date())}.xlsx`);
+        }
+
+        function exportSummary() {
+            if (!lastData) return alert('Load data first');
+            const ws_data = [["Employee ID", "Name", "Date", "First Check In", "Last Check Out", "Total Time Stayed"]];
+            for (const uid in lastData.summary) {
+                const name = lastData.userNames[uid] || uid;
+                for (const date in lastData.summary[uid]) {
+                    if (!matchesFilter(date, lastData.filterInfo)) continue;
+                    const s = lastData.summary[uid][date];
+                    ws_data.push([uid, name, date, s.firstIn, s.lastOut, s.duration]);
+                }
+            }
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Attendance Summary");
+            XLSX.writeFile(wb, `attendance_summary_${getLocalISODate(new Date())}.xlsx`);
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            // Set initial state for filters
+            const today = new Date();
+            document.getElementById('filterType').value = 'date';
+            document.getElementById('filterValue').value = getLocalISODate(today);
+
+            startAutoRefresh();
+        });
+    </script>
+</body>
+
+</html>
