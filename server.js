@@ -35,7 +35,54 @@ let cooldownUntil = 0; // Timestamp until which we should not hit the device
 
 // --- HELPER LOGIC ---
 
+const fs = require('fs');
+const path = require('path');
+const LOCK_FILE = path.resolve(__dirname, 'zk_device.lock');
+
 // Robust wrapper for ZK operations to handle timeouts and crashes
+async function waitForLock() {
+    const LOCK_ALIVE_MS = 120000; // 2 minutes max lock life before force break
+
+    while (true) {
+        try {
+            // Try to create lock file exclusively
+            fs.writeFileSync(LOCK_FILE, Date.now().toString(), { flag: 'wx' });
+            return; // Lock acquired
+        } catch (e) {
+            if (e.code === 'EEXIST') {
+                // Lock exists. Check if it's stale.
+                try {
+                    const lockTime = parseInt(fs.readFileSync(LOCK_FILE, 'utf8'));
+                    if (Date.now() - lockTime > LOCK_ALIVE_MS) {
+                        console.warn('[LOCK] Found stale lock file (>2m old). Breaking lock...');
+                        try { fs.unlinkSync(LOCK_FILE); } catch (ign) { }
+                        continue; // Retry acquiring immediately
+                    }
+                } catch (err) {
+                    // Error reading lock file (maybe deleted concurrently), retry immediately
+                    continue;
+                }
+
+                // Wait 1 second before retrying
+                console.log('[ZK] Waiting for device lock...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+                throw e; // Unexpected error
+            }
+        }
+    }
+}
+
+async function releaseLock() {
+    try {
+        if (fs.existsSync(LOCK_FILE)) {
+            fs.unlinkSync(LOCK_FILE);
+        }
+    } catch (e) {
+        console.error('[LOCK] Error releasing lock:', e);
+    }
+}
+
 async function executeZKAction(action) {
     const now = Date.now();
     // 1. Check Cool Down (after errors)
@@ -54,6 +101,9 @@ async function executeZKAction(action) {
 
     isDeviceBusy = true;
     lastBusyReset = now;
+
+    // Acquire global file lock before connecting
+    await waitForLock();
 
     const zk = new ZK(DEVICE_IP, DEVICE_PORT, 10000); // 10s timeout
     try {
@@ -83,6 +133,10 @@ async function executeZKAction(action) {
         } catch (e) {
             // Socket already closed
         }
+
+        // Release global file lock
+        await releaseLock();
+
         isDeviceBusy = false;
     }
 }
